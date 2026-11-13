@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Encrypted Chat</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <div id="setup">
+        <h2>Encrypted Chat</h2>
+        <input type="text" id="username" placeholder="Enter your name" required>
+        <input type="password" id="passphrase" placeholder="Enter secret passphrase" required>
+        <input type="text" id="serverAddr" placeholder="Server Host:Port (leave blank for current)">
+        <button id="joinBtn">Join Room</button>
+    </div>
+
+    <div id="chat">
+        <div id="status-bar">
+            <span id="room-info">Encrypted Room</span>
+            <span id="save-status">● Autosaved</span>
+        </div>
+        <div id="messages"></div>
+        <form id="input-row">
+            <input type="text" id="msgInput" placeholder="Type a message or /help..." autocomplete="off">
+            <button type="submit" id="sendBtn">Send</button>
+        </form>
+    </div>
+
+    <script type="module" src="app.js"></script>
+</body>
+
+</html>
