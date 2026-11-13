@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { WebSocketServer } = require('ws');
 
-const cliPort = parseInt(process.argv[2], 10);
+const cliPort = parseInt(process.argv, 10);
 const PORT = (!isNaN(cliPort) && cliPort > 0 && cliPort <= 65535)
     ? cliPort
     : (process.env.PORT || 8080);
@@ -21,12 +21,15 @@ try {
     encryptedHistory = [];
 }
 
-function saveHistoryToDisk() {
-    try {
-        fs.writeFileSync(STORE_FILE, JSON.stringify(encryptedHistory), 'utf8');
-    } catch (err) {
-        console.error('Failed to persist encrypted history:', err.message);
-    }
+let saveTimeout = null;
+function scheduleHistorySave() {
+    if (saveTimeout) return;
+    saveTimeout = setTimeout(() => {
+        saveTimeout = null;
+        fs.writeFile(STORE_FILE, JSON.stringify(encryptedHistory), 'utf8', (err) => {
+            if (err) console.error('Failed to persist encrypted history:', err.message);
+        });
+    }, 1000);
 }
 
 const MIME_TYPES = {
@@ -36,6 +39,13 @@ const MIME_TYPES = {
 };
 
 const server = http.createServer((req, res) => {
+    // Health check endpoint for Render & UptimeRobot
+    if (req.url === '/health') {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('OK');
+        return;
+    }
+
     const safeUrl = req.url === '/' ? '/index.html' : req.url;
     const filePath = path.join(PUBLIC_DIR, path.normalize(safeUrl));
 
@@ -65,6 +75,7 @@ wss.on('connection', (ws) => {
     ws.isAlive = true;
     ws.on('pong', () => { ws.isAlive = true; });
 
+    // Replay stored encrypted packets so offline messages are delivered immediately
     encryptedHistory.forEach((entry) => {
         if (ws.readyState === 1) {
             const buf = Buffer.from(entry.payload, 'base64');
@@ -76,6 +87,11 @@ wss.on('connection', (ws) => {
         if (!isBinary) return;
 
         const buf = Buffer.from(data);
+        // Ignore 1-byte client keep-alive heartbeats
+        if (buf.length === 1 && buf === 0x00) {
+            return;
+        }
+
         encryptedHistory.push({
             id: Date.now() + '-' + Math.random().toString(36).slice(2, 8),
             payload: buf.toString('base64')
@@ -84,7 +100,7 @@ wss.on('connection', (ws) => {
         if (encryptedHistory.length > MAX_HISTORY) {
             encryptedHistory = encryptedHistory.slice(-MAX_HISTORY);
         }
-        saveHistoryToDisk();
+        scheduleHistorySave();
 
         wss.clients.forEach((client) => {
             if (client !== ws && client.readyState === 1) {
@@ -94,6 +110,7 @@ wss.on('connection', (ws) => {
     });
 });
 
+// Keep-alive ping every 30 seconds so active tabs stay connected
 const interval = setInterval(() => {
     wss.clients.forEach((ws) => {
         if (ws.isAlive === false) return ws.terminate();

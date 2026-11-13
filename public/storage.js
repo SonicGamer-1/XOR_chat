@@ -41,26 +41,32 @@ export function toggleAutoDownload() {
     return autoDownloadEnabled;
 }
 
+// Returns true if this exact encrypted packet is new, or false if already saved
 export function savePacketToLocal(buffer, sessionTranscript) {
     try {
         const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
         const b64 = bufferToBase64(buffer);
-        if (!existing.includes(b64)) {
-            existing.push(b64);
-            if (existing.length > 1000) existing.shift();
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
 
-            if (autoDownloadEnabled) {
-                unsavedCount++;
-                if (unsavedCount >= AUTO_SAVE_INTERVAL) {
-                    unsavedCount = 0;
-                    downloadChatLog(sessionTranscript);
-                }
-            }
-            flashSaveStatus();
+        if (existing.includes(b64)) {
+            return false;
         }
+
+        existing.push(b64);
+        if (existing.length > 500) existing.shift();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
+
+        if (autoDownloadEnabled) {
+            unsavedCount++;
+            if (unsavedCount >= AUTO_SAVE_INTERVAL) {
+                unsavedCount = 0;
+                downloadChatLog(sessionTranscript);
+            }
+        }
+        flashSaveStatus();
+        return true;
     } catch (e) {
         console.warn("localStorage unavailable:", e);
+        return true;
     }
 }
 
